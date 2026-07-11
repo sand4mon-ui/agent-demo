@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Waypoint — AI Travel Agent</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand">✈ Waypoint</div>
+    <nav>
+      <a href="#how-it-works">How it works</a>
+      <button id="open-chat-nav" class="btn btn-primary">Plan a trip</button>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Your trip, planned in one conversation.</h1>
+      <p>
+        Tell Waypoint where you're starting from and what kind of trip you want —
+        it'll suggest destinations, sketch an itinerary, and give you flight
+        booking guidance. No forms, no spreadsheets.
+      </p>
+      <button id="open-chat-hero" class="btn btn-primary btn-large">
+        Start planning →
+      </button>
+    </section>
+
+    <section id="how-it-works" class="how-it-works">
+      <h2>How it works</h2>
+      <div class="steps">
+        <div class="step">
+          <div class="step-number">1</div>
+          <h3>Tell us about your trip</h3>
+          <p>Origin, destination style, dates, budget, group size, and interests.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">2</div>
+          <h3>Get a real plan</h3>
+          <p>Destination suggestions, a day-by-day outline, and flight guidance.</p>
+        </div>
+        <div class="step">
+          <div class="step-number">3</div>
+          <h3>Refine it live</h3>
+          <p>Ask follow-up questions and adjust the plan until it fits.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Waypoint is a demo travel-planning assistant powered by Claude.</p>
+  </footer>
+
+  <!-- Floating chat widget -->
+  <div id="chat-widget" class="chat-widget">
+    <button id="chat-fab" class="chat-fab" aria-label="Open travel agent chat">✈</button>
+
+    <div id="chat-window" class="chat-window hidden">
+      <div class="chat-header">
+        <span>Waypoint Travel Agent</span>
+        <button id="chat-close" aria-label="Close chat">✕</button>
+      </div>
+      <div id="chat-messages" class="chat-messages"></div>
+      <form id="chat-form" class="chat-input-row">
+        <input
+          id="chat-input"
+          type="text"
+          autocomplete="off"
+          placeholder="Type your answer…"
+        />
+        <button type="submit" class="btn btn-primary">Send</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
