@@ -1,0 +1,9 @@
+{
+  "name": "agent-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.111.0"
+  }
+}
