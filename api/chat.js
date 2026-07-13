@@ -3,8 +3,17 @@
 // behavior into a stateless HTTP endpoint: the client sends the full
 // message history each turn (same shape the CLI keeps in memory), and
 // this function calls Claude and returns the reply.
+//
+// When VOYAGE_API_KEY and KNOWLEDGE_BASE_URL are configured, Claude also
+// gets a search_travel_policies tool (Agentic RAG: Claude decides if/when
+// a question needs the cancellation/baggage/insurance knowledge base,
+// rather than every message being forced through retrieval). The tool-use
+// round trip happens entirely inside this one request/response cycle —
+// the browser only ever sees the final text reply, never the raw tool
+// calls, so the client's conversation history stays plain text turns.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { loadKnowledgeBase, searchKnowledgeBase } from "./rag.js";
 
 const DEFAULT_MODEL = "claude-opus-4-8";
 const MAX_TOKENS = 4096;
@@ -28,7 +37,69 @@ size, and interests). Using that information:
 
 Keep the response well-organized with headers, but don't pad it — be concrete \
 and specific rather than generic. After your initial plan, continue the \
-conversation naturally, refining suggestions as the user gives feedback.`;
+conversation naturally, refining suggestions as the user gives feedback.
+
+You also have a search_travel_policies tool that searches this operator's \
+official cancellation, baggage, and travel-insurance policy documents. Use \
+it whenever the user asks about cancelling or changing a booking, refunds, \
+baggage allowances or fees, lost or delayed luggage, or travel insurance \
+coverage — don't answer those questions from general knowledge, since \
+policies vary by operator. Cite what the retrieved policy text actually \
+says rather than paraphrasing loosely, and say so plainly if the retrieved \
+text doesn't answer the question.`;
+
+const SEARCH_TOOL = {
+  name: "search_travel_policies",
+  description:
+    "Search the operator's official cancellation, baggage, and " +
+    "travel-insurance policy documents. Call this whenever the user asks " +
+    "about cancelling/changing a booking, refunds, baggage allowances or " +
+    "fees, lost or delayed luggage, or travel insurance coverage.",
+  input_schema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description:
+          "A short, specific question to search the policy documents for, " +
+          "e.g. 'refund for cancellation 48 hours before departure'.",
+      },
+    },
+    required: ["query"],
+  },
+};
+
+async function runConversationTurn(client, model, messages, tools, kb, voyageApiKey) {
+  while (true) {
+    const response = await client.messages.create({
+      model,
+      max_tokens: MAX_TOKENS,
+      system: SYSTEM_PROMPT,
+      tools,
+      messages,
+    });
+    messages.push({ role: "assistant", content: response.content });
+
+    if (response.stop_reason !== "tool_use") {
+      return response.content.find((b) => b.type === "text")?.text ?? "";
+    }
+
+    const toolResults = [];
+    for (const block of response.content) {
+      if (block.type !== "tool_use") continue;
+      let resultText;
+      if (block.name === "search_travel_policies" && kb) {
+        resultText = await searchKnowledgeBase(kb, block.input?.query ?? "", voyageApiKey);
+      } else if (block.name === "search_travel_policies") {
+        resultText = "The policy knowledge base is not configured right now.";
+      } else {
+        resultText = `Unknown tool: ${block.name}`;
+      }
+      toolResults.push({ type: "tool_result", tool_use_id: block.id, content: resultText });
+    }
+    messages.push({ role: "user", content: toolResults });
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -55,17 +126,24 @@ export default async function handler(req, res) {
       throw new Error("ANTHROPIC_API_KEY is not configured on the server");
     }
 
+    const voyageApiKey = process.env.VOYAGE_API_KEY;
+    const kbUrl = process.env.KNOWLEDGE_BASE_URL;
+    const blobToken = process.env.BLOB_READ_WRITE_TOKEN;
+    let kb = null;
+    let tools = [];
+    if (voyageApiKey && kbUrl) {
+      try {
+        kb = await loadKnowledgeBase(kbUrl, voyageApiKey, blobToken);
+        tools = [SEARCH_TOOL];
+      } catch (err) {
+        console.warn(`Knowledge base unavailable, continuing without it: ${err.message}`);
+      }
+    }
+
     const client = new Anthropic({ apiKey });
     const model = process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
-      messages,
-    });
-
-    const reply = response.content.find((b) => b.type === "text")?.text ?? "";
+    const reply = await runConversationTurn(client, model, messages, tools, kb, voyageApiKey);
     res.status(200).json({ reply });
   } catch (err) {
     const status = err instanceof Anthropic.APIError ? 502 : 400;

@@ -27,9 +27,25 @@ index.html        Landing page + floating chat widget markup
 style.css         Styling for the page and widget
 app.js            Widget state machine (intake questions -> free chat)
 api/chat.js       Vercel Node.js serverless function calling the Claude API
+api/rag.js        Knowledge-base retrieval: chunk, embed (Voyage AI), cosine search
 package.json      Node deps for the serverless function (@anthropic-ai/sdk)
 vercel.json       Overrides the project's Framework Preset (set to null)
 ```
+
+## Agentic RAG (policy knowledge base)
+
+When `VOYAGE_API_KEY` and `KNOWLEDGE_BASE_URL` are set, Claude also gets a
+`search_travel_policies` tool covering cancellation, baggage, and travel
+insurance policy — the same knowledge base and tool the `agent-demo2.py` CLI
+uses. It's *agentic* retrieval: Claude decides whether a question needs the
+tool rather than every message being forced through it.
+
+The knowledge base itself (`knowledge_base.md`) lives in Vercel Blob storage,
+not in this repo — see `agent-demo2/knowledge_base.md` and
+`agent-demo2/scripts/upload_knowledge_base.js` for the canonical source and
+the upload script. If either env var is missing (or the knowledge base fails
+to load), the site keeps working for trip planning; it just can't answer
+policy questions.
 
 ## Local development
 
@@ -46,6 +62,8 @@ one with:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
+VOYAGE_API_KEY=pa-...
+KNOWLEDGE_BASE_URL=https://<store>.public.blob.vercel-storage.com/knowledge_base.md
 ```
 
 ## Deploying
@@ -53,8 +71,10 @@ ANTHROPIC_API_KEY=sk-ant-...
 ```
 vercel                     # first run: links/creates the project
 vercel env add ANTHROPIC_API_KEY production
+vercel env add VOYAGE_API_KEY production
+vercel env add KNOWLEDGE_BASE_URL production
 vercel --prod
 ```
 
-The API key is stored as a Vercel environment variable, never committed to
-git or shipped to the client.
+Every key is stored as a Vercel environment variable, never committed to git
+or shipped to the client.
